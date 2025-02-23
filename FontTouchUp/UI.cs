@@ -9,6 +9,9 @@ namespace FontTouchUp
 
         private readonly PixelPanel[][] panels = new PixelPanel[16][];
         private int currentChar = 0;
+        private Bitmap loadedLogoFile = new(128, 64);
+        private readonly Bitmap appliedLogo = new(128, 64);
+        private readonly byte[] logoData = new byte[1024];
 
         public UI()
         {
@@ -38,8 +41,11 @@ namespace FontTouchUp
             {
                 _ = new BigChar(i - 32);
             }
+            LogoPreview.BackgroundImage = appliedLogo;
             LoadFont("default.nicfont");
             RenderCharacter(0);
+            if(LoadLogoImage("defaultlogo.png"))
+                ApplyLogoImage();
         }
 
         private void RenderCharacter(int c)
@@ -135,9 +141,87 @@ namespace FontTouchUp
             }
         }
 
+        private bool LoadLogoImage(string fileName)
+        {
+            Bitmap? image = null;
+            try
+            {
+                image = (Bitmap)Image.FromFile(fileName);
+                if (image.Width < 128 || image.Height < 64)
+                {
+                    SetStatus("Logo must be at least 128x64 pixels.");
+                    image.Dispose();
+                    return false;
+                }
+                if (image.Width != 128 || image.Height != 64)
+                {
+                    SetStatus("Only the top left 128x64 pixels of the image will be used.");
+                }
+                loadedLogoFile.Dispose();
+                loadedLogoFile = image;
+                return true;
+            }
+            catch { }
+            SetStatus("Error loading image file.");
+            image?.Dispose();
+            return false;
+        }
+
+        private void ContrastControl_Scroll(object sender, EventArgs e)
+        {
+            ApplyLogoImage();
+        }
+
+        private void ApplyLogoImage()
+        {
+            for (int x = 0; x < 128; x++)
+            {
+                for (int y = 0; y < 64; y++)
+                {
+                    Color col = loadedLogoFile.GetPixel(x, y);
+                    int brightness = col.R + col.G + col.B;
+                    bool isSet = brightness > ContrastControl.Value;
+                    if(InvertLogoControl.Checked) isSet = !isSet;
+                    appliedLogo.SetPixel(x, y, isSet ? Color.White : Color.Black);
+                    int addr = (x * 8) + (y / 8);
+                    int mask = 1 << (y % 8);
+                    if (isSet)
+                        logoData[addr] |= (byte)mask;
+                    else
+                        logoData[addr] &= (byte)~mask;
+                }
+            }
+            LogoPreview.Refresh();
+            //for (int i = 0; i < logoData.Length; i++)
+            //{
+            //    if ((i % 16) == 0)
+            //        Debug.WriteLine("");
+            //    Debug.Write($"0x{logoData[i]:X2}, ");
+            //}
+        }
+
+        private void InvertLogoControl_CheckedChanged(object sender, EventArgs e)
+        {
+            ApplyLogoImage();
+        }
+
+        private void LoadLogoImageButton_Click(object sender, EventArgs e)
+        {
+            using var ofd = new OpenFileDialog()
+            {
+                Filter = "Image Files|*.bmp;*.jpg;*.jpeg;*.png;*.gif;*.tiff;*.tif;*.webp|All Files|*.*",
+                Title = "Select an Image File",
+            };
+            if (ofd.ShowDialog() == DialogResult.OK)
+            {
+                if (LoadLogoImage(ofd.FileName))
+                    ApplyLogoImage();
+            }
+        }
+
         private void SetStatus(string status)
         {
-            StatusLabel.Text = status;
+            StatusLabel.Text = StatusLabel2.Text = status;
         }
 
         private static int Patch16x16(char start, char end, byte[] fw, int offset)
@@ -187,7 +271,7 @@ namespace FontTouchUp
                 Title = "Load nicFW V2.5X.XX Firmware File",
                 Filter = "nicFW Files|*.bin|All Files|*.*"
             };
-            if(ofd.ShowDialog() == DialogResult.OK)
+            if (ofd.ShowDialog() == DialogResult.OK)
             {
                 try
                 {
@@ -196,32 +280,47 @@ namespace FontTouchUp
                         SetStatus("Incorrect file length");
                     else
                     {
-                        ulong srch = 0x007e7e00007e7e00UL;
-                        for (int i = 0; i < fw.Length - 2144; i++)
+                        ulong srchfont = 0x0f09ff007989898eUL;
+                        ulong srchlogo = 0x55e5d1c566a61c87UL;
+                        bool fontPatched = false, logoPatched = false;
+                        for (int i = 0; i < fw.Length - 10; i++)
                         {
-                            if (srch == BitConverter.ToUInt64(fw, i))
+                            var match = BitConverter.ToUInt64(fw, i);
+                            if (!fontPatched && srchfont == match)
                             {
                                 i += 8;
                                 i += Patch16x16('0', '9', fw, i);
                                 i += Patch16x16('A', 'Z', fw, i);
                                 i += Patch16x16('a', 'z', fw, i);
                                 Patch8x16(fw, i);
-                                using var sfd = new SaveFileDialog()
-                                {
-                                    Title = "Save Patched nicFW V2.5X.XX Firmware File",
-                                    Filter = "nicFW Files|*.bin|All Files|*.*"
-                                };
-                                if(sfd.ShowDialog() == DialogResult.OK)
-                                {
-                                    File.WriteAllBytes(sfd.FileName, fw);
-                                    SetStatus("Patched Firmware Saved");
-                                }
-                                else
-                                    SetStatus("Patched Firmware Save Canceled");
-                                return;
+                                fontPatched = true;
                             }
+                            if(!logoPatched && srchlogo == match)
+                            {
+                                i += 8;
+                                Array.Copy(logoData, 0, fw, i, 1024);
+                                logoPatched = true;
+                            }
+                            if (logoPatched && fontPatched)
+                                break;
                         }
-                        SetStatus("Incompatible firmware binary");
+                        if (logoPatched && fontPatched)
+                        {
+                            using var sfd = new SaveFileDialog()
+                            {
+                                Title = "Save Patched nicFW V2.5X.XX Firmware File",
+                                Filter = "nicFW Files|*.bin|All Files|*.*"
+                            };
+                            if (sfd.ShowDialog() == DialogResult.OK)
+                            {
+                                File.WriteAllBytes(sfd.FileName, fw);
+                                SetStatus("Patched Firmware Saved");
+                            }
+                            else
+                                SetStatus("Patched Firmware Save Canceled");
+                        }
+                        else
+                            SetStatus("Incompatible firmware binary");
                     }
                 }
                 catch
@@ -230,6 +329,7 @@ namespace FontTouchUp
                 }
             }
         }
+
     }
 
     public class BigChar
