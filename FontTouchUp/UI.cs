@@ -44,7 +44,7 @@ namespace FontTouchUp
             LogoPreview.BackgroundImage = appliedLogo;
             LoadFont("default.nicfont");
             RenderCharacter(0);
-            if(LoadLogoImage("defaultlogo.png"))
+            if (LoadLogoImage("defaultlogo.png"))
                 ApplyLogoImage();
         }
 
@@ -181,7 +181,7 @@ namespace FontTouchUp
                     Color col = loadedLogoFile.GetPixel(x, y);
                     int brightness = col.R + col.G + col.B;
                     bool isSet = brightness > ContrastControl.Value;
-                    if(InvertLogoControl.Checked) isSet = !isSet;
+                    if (InvertLogoControl.Checked) isSet = !isSet;
                     appliedLogo.SetPixel(x, y, isSet ? Color.White : Color.Black);
                     int addr = (x * 8) + (y / 8);
                     int mask = 1 << (y % 8);
@@ -295,7 +295,7 @@ namespace FontTouchUp
                                 Patch8x16(fw, i);
                                 fontPatched = true;
                             }
-                            if(!logoPatched && srchlogo == match)
+                            if (!logoPatched && srchlogo == match)
                             {
                                 i += 8;
                                 Array.Copy(logoData, 0, fw, i, 1024);
@@ -330,6 +330,34 @@ namespace FontTouchUp
             }
         }
 
+        private BigChar? clipped = null;
+
+        private void CopyButton_Click(object sender, EventArgs e)
+        {
+            clipped = BigChar.Chars[currentChar];
+        }
+
+        private void PasteButton_Click(object sender, EventArgs e)
+        {
+            BigChar current = BigChar.Chars[currentChar];
+            if (clipped != null && current != clipped)
+            {
+                for (int i = 0; i < 4; i++)
+                {
+                    Array.Copy(clipped.Panes[i], 0, current.Panes[i], 0, 8);
+                }
+                current.Save();
+                RenderCharacter(currentChar);
+            }
+        }
+
+        private void NUD_CharIndex_MouseDown(object sender, MouseEventArgs e)
+        {
+            if(e.Button == MouseButtons.Right)
+            {
+                NUD_CharIndex.Value += NUD_CharIndex.Value >= 64 ? -32 : 32;
+            }
+        }
     }
 
     public class BigChar

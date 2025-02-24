@@ -35,6 +35,8 @@
             SaveFontButton = new Button();
             LoadFontButton = new Button();
             PatchFirmwareButton = new Button();
+            PasteButton = new Button();
+            CopyButton = new Button();
             StatusLabel = new Label();
             tabControl1 = new TabControl();
             FontsTab = new TabPage();
@@ -112,6 +114,8 @@
             flowLayoutPanel1.Controls.Add(SaveFontButton);
             flowLayoutPanel1.Controls.Add(LoadFontButton);
             flowLayoutPanel1.Controls.Add(PatchFirmwareButton);
+            flowLayoutPanel1.Controls.Add(PasteButton);
+            flowLayoutPanel1.Controls.Add(CopyButton);
             flowLayoutPanel1.Dock = DockStyle.Fill;
             flowLayoutPanel1.Location = new Point(1187, 3);
             flowLayoutPanel1.Name = "flowLayoutPanel1";
@@ -146,6 +150,7 @@
             NUD_CharIndex.TabIndex = 0;
             NUD_CharIndex.TextAlign = HorizontalAlignment.Right;
             NUD_CharIndex.ValueChanged += NUD_CharIndex_ValueChanged;
+            NUD_CharIndex.MouseDown += NUD_CharIndex_MouseDown;
             // 
             // SaveFontButton
             // 
@@ -186,6 +191,7 @@
             PatchFirmwareButton.AutoSizeMode = AutoSizeMode.GrowAndShrink;
             PatchFirmwareButton.BackColor = Color.FromArgb(40, 60, 40);
             PatchFirmwareButton.FlatStyle = FlatStyle.Flat;
+            flowLayoutPanel1.SetFlowBreak(PatchFirmwareButton, true);
             PatchFirmwareButton.Font = new Font("Segoe UI", 11F, FontStyle.Bold, GraphicsUnit.Point, 0);
             PatchFirmwareButton.Location = new Point(139, 172);
             PatchFirmwareButton.Name = "PatchFirmwareButton";
@@ -194,6 +200,38 @@
             PatchFirmwareButton.Text = "Patch Firmware";
             PatchFirmwareButton.UseVisualStyleBackColor = false;
             PatchFirmwareButton.Click += PatchFirmwareButton_Click;
+            // 
+            // PasteButton
+            // 
+            PasteButton.AutoSize = true;
+            PasteButton.AutoSizeMode = AutoSizeMode.GrowAndShrink;
+            PasteButton.BackColor = Color.FromArgb(40, 60, 40);
+            PasteButton.FlatStyle = FlatStyle.Flat;
+            PasteButton.Font = new Font("Segoe UI", 11F, FontStyle.Bold, GraphicsUnit.Point, 0);
+            PasteButton.Location = new Point(244, 274);
+            PasteButton.Margin = new Padding(3, 30, 30, 3);
+            PasteButton.Name = "PasteButton";
+            PasteButton.Size = new Size(81, 42);
+            PasteButton.TabIndex = 2;
+            PasteButton.Text = "Paste";
+            PasteButton.UseVisualStyleBackColor = false;
+            PasteButton.Click += PasteButton_Click;
+            // 
+            // CopyButton
+            // 
+            CopyButton.AutoSize = true;
+            CopyButton.AutoSizeMode = AutoSizeMode.GrowAndShrink;
+            CopyButton.BackColor = Color.FromArgb(40, 60, 40);
+            CopyButton.FlatStyle = FlatStyle.Flat;
+            CopyButton.Font = new Font("Segoe UI", 11F, FontStyle.Bold, GraphicsUnit.Point, 0);
+            CopyButton.Location = new Point(133, 274);
+            CopyButton.Margin = new Padding(3, 30, 30, 3);
+            CopyButton.Name = "CopyButton";
+            CopyButton.Size = new Size(78, 42);
+            CopyButton.TabIndex = 2;
+            CopyButton.Text = "Copy";
+            CopyButton.UseVisualStyleBackColor = false;
+            CopyButton.Click += CopyButton_Click;
             // 
             // StatusLabel
             // 
@@ -395,5 +433,7 @@
         private Label label2;
         private TrackBar ContrastControl;
         private CheckBox InvertLogoControl;
+        private Button PasteButton;
+        private Button CopyButton;
     }
 }
