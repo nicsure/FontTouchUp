@@ -192,12 +192,6 @@ namespace FontTouchUp
                 }
             }
             LogoPreview.Refresh();
-            //for (int i = 0; i < logoData.Length; i++)
-            //{
-            //    if ((i % 16) == 0)
-            //        Debug.WriteLine("");
-            //    Debug.Write($"0x{logoData[i]:X2}, ");
-            //}
         }
 
         private void InvertLogoControl_CheckedChanged(object sender, EventArgs e)
@@ -275,11 +269,13 @@ namespace FontTouchUp
             {
                 try
                 {
-                    byte[] fw = File.ReadAllBytes(ofd.FileName);
-                    if (fw.Length < 2144 || fw.Length > 0xf800)
+                    byte[] tmp = File.ReadAllBytes(ofd.FileName);
+                    if (tmp.Length < 2144 || tmp.Length > 0xf800)
                         SetStatus("Incorrect file length");
                     else
                     {
+                        byte[] fw = new byte[0xf800];
+                        Array.Copy(tmp, 0, fw, 0, 0xf800);
                         ulong srchfont = 0x0f09ff007989898eUL;
                         ulong srchlogo = 0x55e5d1c566a61c87UL;
                         bool fontPatched = false, logoPatched = false;
@@ -306,6 +302,9 @@ namespace FontTouchUp
                         }
                         if (logoPatched && fontPatched)
                         {
+                            uint crc = ComputeCrc32(fw[..0xf7fc]);
+                            crc ^= 0xffffffffu;
+                            BitConverter.GetBytes(crc).CopyTo(fw, 0xf7fc);
                             using var sfd = new SaveFileDialog()
                             {
                                 Title = "Save Patched nicFW V2.5X.XX Firmware File",
@@ -357,6 +356,14 @@ namespace FontTouchUp
             {
                 NUD_CharIndex.Value += NUD_CharIndex.Value >= 64 ? -32 : 32;
             }
+        }
+
+        public static uint ComputeCrc32(byte[] data)
+        {
+            var crc32 = new System.IO.Hashing.Crc32();
+            crc32.Append(data);
+            byte[] hash = crc32.GetCurrentHash();
+            return BitConverter.ToUInt32(hash, 0);
         }
     }
 
