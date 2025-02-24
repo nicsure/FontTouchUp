@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using System.Security.Cryptography;
 using System.Text;
+using System.Windows.Forms;
 
 namespace FontTouchUp
 {
@@ -12,6 +13,8 @@ namespace FontTouchUp
         private Bitmap loadedLogoFile = new(128, 64);
         private readonly Bitmap appliedLogo = new(128, 64);
         private readonly byte[] logoData = new byte[1024];
+        private bool clickSet = true;
+        PixelPanel? mousePanel = null;
 
         public UI()
         {
@@ -27,7 +30,9 @@ namespace FontTouchUp
                         BackColor = Color.Black,
                         BorderStyle = BorderStyle.FixedSingle
                     };
-                    p.Click += PixelPanel_Click;
+                    p.MouseDown += PixelPanel_MouseDown;
+                    p.MouseUp += PixelPanel_MouseUp;
+                    p.MouseMove += PixelPanel_MouseMove;
                     MainGrid.SetColumn(p, x);
                     MainGrid.SetRow(p, y);
                     MainGrid.Controls.Add(p);
@@ -63,22 +68,41 @@ namespace FontTouchUp
             }
         }
 
-        private void PixelPanel_Click(object? sender, EventArgs e)
+        private void PixelPanel_SetPixel(PixelPanel panel, bool setState)
+        {
+            panel.Status = setState ? 1 : 0;
+            panel.BackColor = setState ? Color.SkyBlue : Color.Black;
+            BigChar.Chars[currentChar].SetPixel(panel.X, panel.Y, setState);
+        }
+
+        private void PixelPanel_MouseDown(object? sender, MouseEventArgs e)
         {
             if (sender is not PixelPanel panel) return;
-            switch (panel.Status)
+            clickSet = panel.Status == 0;
+            PixelPanel_SetPixel(panel, clickSet);
+            mousePanel = panel;
+        }
+
+        private void PixelPanel_MouseUp(object? sender, MouseEventArgs e)
+        {
+            mousePanel = null;
+        }
+
+        private void PixelPanel_MouseMove(object? sender, MouseEventArgs e)
+        {
+            if (mousePanel == null) return;
+            Point cp = Point.Add(mousePanel.Location, (Size)e.Location);
+            if (GetDeepestChildAtPoint(MainGrid, cp) is PixelPanel newPanel)
             {
-                case 0:
-                    panel.Status = 1;
-                    panel.BackColor = Color.SkyBlue;
-                    BigChar.Chars[currentChar].SetPixel(panel.X, panel.Y, true);
-                    break;
-                case 1:
-                    panel.Status = 0;
-                    panel.BackColor = Color.Black;
-                    BigChar.Chars[currentChar].SetPixel(panel.X, panel.Y, false);
-                    break;
+                PixelPanel_SetPixel(newPanel, clickSet);
             }
+        }
+
+        private static Control? GetDeepestChildAtPoint(Control parent, Point point)
+        {
+            Control? child = parent.GetChildAtPoint(point);
+            if (child == null) return parent;
+            return GetDeepestChildAtPoint(child, child.PointToClient(Cursor.Position));
         }
 
         private void NUD_CharIndex_ValueChanged(object sender, EventArgs e)
@@ -352,7 +376,7 @@ namespace FontTouchUp
 
         private void NUD_CharIndex_MouseDown(object sender, MouseEventArgs e)
         {
-            if(e.Button == MouseButtons.Right)
+            if (e.Button == MouseButtons.Right)
             {
                 NUD_CharIndex.Value += NUD_CharIndex.Value >= 64 ? -32 : 32;
             }
@@ -364,6 +388,99 @@ namespace FontTouchUp
             crc32.Append(data);
             byte[] hash = crc32.GetCurrentHash();
             return BitConverter.ToUInt32(hash, 0);
+        }
+
+        private void ClearButton_Click(object sender, EventArgs e)
+        {
+            BigChar current = BigChar.Chars[currentChar];
+            for (int i = 0; i < 4; i++)
+            {
+                Array.Fill<byte>(current.Panes[i], 0);
+            }
+            current.Save();
+            RenderCharacter(currentChar);
+        }
+
+        private void NudgeButtons_Click(object sender, EventArgs e)
+        {
+            BigChar current = BigChar.Chars[currentChar];
+            if (sender == UpButton)
+            {
+                for (int i = 0; i < 8; i++)
+                {
+                    for (int j = 0; j < 2; j++)
+                    {
+                        int cb0 = current.Panes[j][i] & 1;
+                        int cb1 = current.Panes[j + 2][i] & 1;
+                        current.Panes[j][i] >>= 1;
+                        current.Panes[j + 2][i] >>= 1;
+                        current.Panes[j][i] |= (byte)(cb1 << 7);
+                        current.Panes[j + 2][i] |= (byte)(cb0 << 7);
+                    }
+                }
+            }
+            else
+            if (sender == DownButton)
+            {
+                for (int i = 0; i < 8; i++)
+                {
+                    for (int j = 0; j < 2; j++)
+                    {
+                        int cb0 = current.Panes[j][i] & 0x80;
+                        int cb1 = current.Panes[j + 2][i] & 0x80;
+                        current.Panes[j][i] <<= 1;
+                        current.Panes[j + 2][i] <<= 1;
+                        current.Panes[j][i] |= (byte)(cb1 >> 7);
+                        current.Panes[j + 2][i] |= (byte)(cb0 >> 7);
+                    }
+                }
+            }
+            else
+            if (sender == LeftButton)
+            {
+                for (int j = 0; j < 4; j += 2)
+                {
+                    byte cb0 = current.Panes[j][0];
+                    byte cb1 = current.Panes[j + 1][0];
+                    var l0 = current.Panes[j].ToList();
+                    l0.RemoveAt(0);
+                    l0.Add(cb1);
+                    var l1 = current.Panes[j + 1].ToList();
+                    l1.RemoveAt(0);
+                    l1.Add(cb0);
+                    l0.ToArray().CopyTo(current.Panes[j], 0);
+                    l1.ToArray().CopyTo(current.Panes[j + 1], 0);
+                }
+            }
+            else
+            if (sender == RightButton)
+            {
+                for (int j = 0; j < 4; j += 2)
+                {
+                    byte cb0 = current.Panes[j][7];
+                    byte cb1 = current.Panes[j + 1][7];
+                    var l0 = current.Panes[j].ToList();
+                    l0.RemoveAt(7);
+                    l0.Insert(0, cb1);
+                    var l1 = current.Panes[j + 1].ToList();
+                    l1.RemoveAt(7);
+                    l1.Insert(0, cb0);
+                    l0.ToArray().CopyTo(current.Panes[j], 0);
+                    l1.ToArray().CopyTo(current.Panes[j + 1], 0);
+                }
+            }
+            current.Save();
+            RenderCharacter(currentChar);
+        }
+
+        private void ShortcutCharacter_MenuClick(object sender, ToolStripItemClickedEventArgs e)
+        {
+            if( e.ClickedItem is ToolStripMenuItem mi &&
+                mi.Tag is string index_s && 
+                int.TryParse(index_s, out int index))
+            {
+                NUD_CharIndex.Value = index;
+            }
         }
     }
 
